@@ -464,6 +464,7 @@ fun SettingsScreen(
                                 scope.launch(Dispatchers.IO) {
                                     try {
                                         val client = OkHttpClient.Builder()
+                                            // Bypass WAF error
                                             .connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
                                             .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
                                             .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)

@@ -37,6 +37,7 @@ data class ClipAnalysisResult(
 
 class GeminiMetaGenerator {
     private val client = OkHttpClient.Builder()
+        // API Timeout to prevent cut-off
         .connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
         .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)

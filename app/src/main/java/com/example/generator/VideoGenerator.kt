@@ -76,6 +76,7 @@ data class VerseData(
 class VideoGenerator {
 
     private val client = OkHttpClient.Builder()
+        // Force IDE text refresh - updated with User-Agent & timeout
         .connectTimeout(1800, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(1800, java.util.concurrent.TimeUnit.SECONDS)
         .writeTimeout(1800, java.util.concurrent.TimeUnit.SECONDS)
