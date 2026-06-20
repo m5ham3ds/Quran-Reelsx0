@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -61,6 +62,18 @@ fun SettingsScreen(
     val backgroundKeywords by settingsManager.backgroundKeywords.collectAsState(initial = emptySet())
 
     val isArabic = language == "ar"
+    
+    var showInlineDiagnostics by remember { mutableStateOf(false) }
+    var logsList by remember { mutableStateOf(emptyList<String>()) }
+    
+    LaunchedEffect(showInlineDiagnostics) {
+        if (showInlineDiagnostics) {
+            while(true) {
+                logsList = com.example.generator.SystemDiagnosticTracker.getLogs()
+                kotlinx.coroutines.delay(500)
+            }
+        }
+    }
 
     // App Colors matching MainActivity
     val ScreenBg = Color(0xFF0F0F12)
@@ -461,6 +474,8 @@ fun SettingsScreen(
                                 val currentGeminiKey = if (geminiKey.isNotBlank()) geminiKey else com.example.BuildConfig.GEMINI_API_KEY
                                 if (currentGeminiKey.isBlank() || currentGeminiKey == "MY_GEMINI_API_KEY") return@Button
                                 isGenerating = true
+                                showInlineDiagnostics = true
+                                com.example.generator.SystemDiagnosticTracker.addLog("AUTOFILL", "بدء عملية الملئ التلقائي للكلمات المرجعية...")
                                 scope.launch(Dispatchers.IO) {
                                     try {
                                         val client = OkHttpClient.Builder()
@@ -478,6 +493,7 @@ fun SettingsScreen(
                                             }
                                             .build()
                                         val url = "https://generativelanguage.googleapis.com/v1beta/models/${geminiModel.trim()}:generateContent?key=${currentGeminiKey.trim()}"
+                                        com.example.generator.SystemDiagnosticTracker.addLog("AUTOFILL", "الرابط المطلوب: $url")
                                         val jsonReq = JSONObject().apply {
                                             put("contents", org.json.JSONArray().apply {
                                                 put(JSONObject().apply {
@@ -496,6 +512,7 @@ fun SettingsScreen(
                                         var attempt = 0
                                         var success = false
                                         while (attempt < 3 && !success) {
+                                            com.example.generator.SystemDiagnosticTracker.addLog("AUTOFILL", "بدء المحاولة رقم ${attempt + 1}")
                                             val response = client.newCall(request).execute()
                                             if (response.isSuccessful) {
                                                 val body = response.body?.string() ?: ""
@@ -509,8 +526,10 @@ fun SettingsScreen(
                                                 withContext(Dispatchers.Main) {
                                                     settingsManager.setBackgroundKeywords(newSet)
                                                 }
+                                                com.example.generator.SystemDiagnosticTracker.addLog("AUTOFILL", "نجاح! تم جلب الكلمات وتحديث القائمة. النص المسترجع: $textStr")
                                                 success = true
                                             } else if (response.code == 429) {
+                                                com.example.generator.SystemDiagnosticTracker.addLog("ERROR", "تم استنفاد الحد الأقصى (429 Too Many Requests). المحاولة $attempt...")
                                                 attempt++
                                                 if (attempt >= 3) {
                                                     withContext(Dispatchers.Main) {
@@ -520,6 +539,7 @@ fun SettingsScreen(
                                                 kotlinx.coroutines.delay(2000L * attempt)
                                             } else {
                                                 val errorBody = response.body?.string() ?: ""
+                                                com.example.generator.SystemDiagnosticTracker.addLog("ERROR", "فشل الاتصال: رمز الاستجابة ${response.code}، التفاصيل: $errorBody")
                                                 withContext(Dispatchers.Main) {
                                                     android.widget.Toast.makeText(context, if (isArabic) "فشل الاتصال: ${response.code}\n$errorBody" else "Connection failed: ${response.code}\n$errorBody", android.widget.Toast.LENGTH_LONG).show()
                                                 }
@@ -527,6 +547,7 @@ fun SettingsScreen(
                                             }
                                         }
                                     } catch (e: Exception) {
+                                        com.example.generator.SystemDiagnosticTracker.addLog("ERROR", "استثناء غير متوقع: ${e.message}")
                                         e.printStackTrace()
                                     } finally {
                                         withContext(Dispatchers.Main) { isGenerating = false }
@@ -756,6 +777,45 @@ fun SettingsScreen(
                                         )
                                     )
                                 }
+                            }
+                        }
+                    }
+                }
+
+                // Inline Diagnostic Tracker
+                if (showInlineDiagnostics && logsList.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color.Black,
+                        border = BorderStroke(1.dp, Color(0x334CAF50)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.BugReport, contentDescription = null, tint = Color(0xFF81C784), modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    if (isArabic) "الفحص التشخيصي الشامل (مباشر)" else "Live System Diagnostics",
+                                    color = Color(0xFF81C784),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            logsList.forEach { log ->
+                                Text(
+                                    text = log,
+                                    color = if (log.contains("ERROR")) Color(0xFFEF5350) else Color(0xFFA5D6A7),
+                                    fontSize = 11.sp,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                    lineHeight = 16.sp,
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
                             }
                         }
                     }
